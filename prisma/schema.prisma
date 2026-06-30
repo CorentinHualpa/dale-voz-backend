@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  hotelName String
+  email     String?
+  language  String   @default("es")
+
+  // WhatsApp config
+  whatsappPhoneIdConversations String? @unique
+  hotelContactWhatsapp         String?
+  hotelContactEmail            String?
+  notificationChannels         String   @default("whatsapp,email")
+
+  // Mercado Pago config
+  mercadoPagoAccessToken String?
+  mercadoPagoPublicKey   String?
+
+  // Future: Cloudbeds
+  cloudbedsApiKey   String?
+  cloudbedsPropertyId String?
+
+  // Relations
+  bookings      Booking[]
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clients")
+}
+
+model Booking {
+  id        String   @id @default(cuid())
+  hotelId   String
+  hotel     Client   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  guestName  String
+  guestPhone String?
+  guestEmail String?
+
+  checkIn  DateTime
+  checkOut DateTime
+  nights   Int
+
+  totalAmount Decimal @db.Decimal(10, 2)
+  currency    String  @default("PEN")
+
+  status String @default("pending_payment")
+
+  // Mercado Pago
+  mercadoPagoPreferenceId String?
+  mercadoPagoPaymentId    String?
+  paidAt                  DateTime?
+
+  // Relations
+  payment       Payment?
+  conversations Conversation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([hotelId])
+  @@index([status])
+  @@map("bookings")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  mercadoPagoId String?  @unique
+  amount        Decimal  @db.Decimal(10, 2)
+  currency      String
+  method        String?
+  status        String   @default("pending")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([status])
+  @@map("payments")
+}
+
+model Conversation {
+  id       String   @id @default(cuid())
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  hotelId  String
+  hotel    Client   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  guestPhone  String
+  channel     String  @default("whatsapp")
+  status      String  @default("active")
+  messagesCount Int   @default(0)
+  durationSeconds Int?
+
+  // Relations
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  endedAt   DateTime?
+
+  @@index([hotelId])
+  @@index([guestPhone])
+  @@index([status])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role         String
+  content      String
+  messageType  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@map("messages")
+}
